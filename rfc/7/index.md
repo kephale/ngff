@@ -37,12 +37,12 @@ Surface mesh representations are essential for visualization and analysis of 3D 
 
 Add a new `mesh` property to the image-label metadata schema to support multi-resolution mesh representations.
 
-The mesh metadata MUST be stored in a mesh.json file with the following structure:
+The mesh metadata MUST be stored in a zarr.json file with the following structure:
 
 ```json
 {
   "zarr_format": 3,
-  "node_type": "group",
+  "node_type": "mesh",
   "attributes": {
     "ome": {
       "version": "0.5",
@@ -76,7 +76,7 @@ For each segmented object:
 [data].zarr/
   ├── labels/
   │   └── [segmentation]/
-  │       ├── mesh.json  # Contains mesh metadata
+  │       ├── zarr.json  # Contains mesh metadata
   │       ├── fragments/ # Binary mesh data
   │       └── manifest/  # Binary manifest files
 ```
