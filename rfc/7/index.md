@@ -1,19 +1,10 @@
-# RFC-7 Mesh Support in NGFF
+# RFC-7: Mesh Support in NGFF
 
-```{toctree}
-:hidden:
-:maxdepth: 1
-reviews/index
-comments/index
-responses/index
-versions/index
-```
-
-Add support for multiscale mesh representations in OME-NGFF by adopting Neuroglancer's multiscale mesh format.
+Add support for mesh representations of segmented objects in OME-NGFF by adapting the Neuroglancer mesh format.
 
 ## Status
 
-This proposal is in early stages. Status: `D1`
+This proposal is very early. Status: D1
 
 ```{list-table} Record
 :widths: 8, 20, 20, 20, 15, 10
@@ -31,44 +22,64 @@ This proposal is in early stages. Status: `D1`
     - @kephale
     - CZI
     - 2024-01-13
-    -
+    - 
 ```
 
 ## Overview
 
-This RFC adds support for multi-resolution triangle meshes in OME-NGFF by adopting Neuroglancer's [multi-resolution mesh format](https://github.com/google/neuroglancer/blob/master/src/datasource/precomputed/meshes.md), enabling efficient storage and retrieval of surface meshes representing segmented objects at multiple levels of detail.
+This RFC proposes adding support for storing multi-resolution triangle mesh representations of segmented objects in OME-NGFF by adapting the Neuroglancer mesh format specification.
 
 ## Background
 
-Surface mesh representations are essential for visualization and analysis of 3D structures in bio-imaging. The Neuroglancer project has developed a robust multi-resolution mesh format that provides efficient storage and progressive loading through octree-based spatial decomposition and Draco compression.
+Surface mesh representations are essential for visualization and analysis of 3D structures in bio-imaging. The current NGFF specification lacks native support for mesh representations. The Neuroglancer project provides a well-tested multi-resolution mesh format that would fill this gap.
 
 ## Proposal
 
-The mesh data for a segmentation must be organized as:
+Add a new `mesh` property to the image-label metadata schema to support multi-resolution mesh representations.
 
-1. An `.ngattrs` JSON file with the following required fields:
-   - `"@type"`: Must be `"neuroglancer_multilod_draco"`
-   - `"vertex_quantization_bits"`: Must be `10` or `16`
-   - `"transform"`: 4x3 homogeneous coordinate transform matrix
-   - `"lod_scale_multiplier"`: Scale factor for LOD scales
+The mesh metadata MUST be stored in a mesh.json file with the following structure:
 
-2. For each segmented object:
-   - A binary manifest file specifying octree decomposition and LOD information
-   - Draco-encoded mesh fragment data for each octree node
+```json
+{
+  "zarr_format": 3,
+  "node_type": "group",
+  "attributes": {
+    "ome": {
+      "version": "0.5",
+      "mesh": {
+        "version": "0.1",
+        "type": "neuroglancer_multilod_draco",
+        "vertexQuantizationBits": 10,
+        "lodScaleMultiplier": 2.0,
+        "coordinateTransformations": [
+          {
+            "type": "scale",
+            "scale": [1.0, 1.0, 1.0]
+          }
+        ]
+      }
+    }
+  }
+}
+```
 
-### Manifest Format
+For each segmented object:
+- A binary manifest file specifying:
+  - Octree decomposition parameters
+  - LOD scale information
+  - Fragment locations and sizes
+- Draco-encoded mesh fragments for each octree node
 
-Binary manifest files must specify:
-- Octree parameters (chunk shape, grid origin)
-- LOD information (number of levels, scales, vertex offsets)
-- Fragment information per LOD (counts, positions, offsets)
+### Storage Layout
 
-### Mesh Fragment Format
-
-Each mesh fragment must be:
-- Draco-encoded triangular mesh
-- Grid-aligned for LOD > 0
-- Position-quantized based on vertex_quantization_bits
+```
+[data].zarr/
+  ├── labels/
+  │   └── [segmentation]/
+  │       ├── mesh.json  # Contains mesh metadata
+  │       ├── fragments/ # Binary mesh data
+  │       └── manifest/  # Binary manifest files
+```
 
 ## Requirements
 
@@ -76,39 +87,29 @@ The key words "MUST", "MUST NOT", "REQUIRED", "SHALL", "SHALL NOT", "SHOULD", "S
 
 ## Stakeholders
 
-Primary stakeholders include developers and scientists working with 3D segmentation visualization and analysis.
+The main stakeholders are bio-image visualization tool developers and scientists working with 3D segmentation data.
 
 ### Socialization
-
 * [Github issue](https://github.com/ome/ngff/issues/33)
 * [Initial meeting with stakeholders](https://github.com/ome/ngff/issues/33#issuecomment-2555637903)
-* [not done yet] Discussion in OME-NGFF community calls
 
 ## Implementation
 
 Implementation requires:
-- JSON and binary manifest parsing
-- Draco mesh encoding/decoding
-- Octree-based spatial decomposition
-- Coordinate transform handling
+1. Metadata handling following NGFF conventions
+2. Binary manifest and mesh fragment handling
+3. Integration with existing coordinate transform system
 
 ## Drawbacks, risks, alternatives, and unknowns
 
-Drawbacks:
-- Dependency on Draco compression
-- Implementation complexity
-- Learning curve for developers
-
-Alternatives considered:
-- Creating a new mesh format
-- Using simpler single-resolution formats (glTF, PLY)
+This proposal adds complexity but provides necessary functionality for 3D visualization. The use of Draco compression creates an external dependency but provides significant storage benefits.
 
 ## Compatibility
 
-This proposal adds new capabilities without affecting existing functionality. Implementation is optional for NGFF readers/writers.
+This proposal adds new capabilities without affecting existing functionality. Reading mesh data is optional - implementations that don't support meshes can ignore the mesh metadata and data.
 
 ## Changelog
 
-| Date       | Description                   | Link                                    |
+| Date | Description | Link |
 |------------|-------------------------------|------------------------------------------|
-| 2024-01-13 | Initial RFC draft            | TBD                                     |
+| 2024-01-13 | Initial RFC draft | TBD |
