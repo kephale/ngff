@@ -35,51 +35,83 @@ Surface mesh representations are essential for visualization and analysis of 3D 
 
 ## Proposal
 
-Add a new `mesh` property to the image-label metadata schema to support multi-resolution mesh representations.
+Add mesh support to NGFF by integrating with the upcoming collections proposal for specifying image-segmentation relationships. The mesh data will be stored as an external artifact within the Zarr hierarchy.
 
-The mesh metadata MUST be stored in a zarr.json file with the following structure:
+### Integration with Collections
+
+Meshes are integrated into the OME-NGFF specification as members of collections. A collection can reference both images and their associated mesh representations:
+
 
 ```json
 {
+    "ome": {
+        "version": "0.x",
+        "collection": {
+            "name": "em_reconstruction",
+            "members": [
+                {
+                    "type": "image",
+                    "path": "./raw",
+                    "attributes": {
+                        // image-specific attributes
+                    }
+                },
+                {
+                    "type": "mesh",
+                    "path": "./meshes",
+                    "attributes": {
+                        "type": "neuroglancer_multilod_draco",
+                        "vertexQuantizationBits": 10,
+                        "lodScaleMultiplier": 2.0,
+                        "coordinateTransformations": [
+                            {
+                                "type": "scale",
+                                "scale": [1.0, 1.0, 1.0]
+                            }
+                        ]
+                    }
+                }
+            ]
+        }
+    }
+}
+```
+
+
+### Storage Layout
+
+When storing mesh data within a collection:
+
+```
+[data].zarr/
+  ├── zarr.json          # Collection metadata (shown above)
+  ├── raw/               # Image data
+  │   ├── zarr.json      # Image metadata
+  │   └── ...
+  └── meshes/            # Mesh data
+      ├── zarr.json      # External node type metadata
+      ├── info           # Mesh format metadata
+      ├── manifest/      # Binary manifest files (unsharded)
+      └── fragments/     # Binary mesh fragment data (unsharded)
+```
+
+### Mesh Directory Metadata
+
+The mesh directory contains a `zarr.json` that identifies it as an external node:
+
+```
+{
   "zarr_format": 3,
-  "node_type": "mesh",
+  "node_type": "external",
   "attributes": {
     "ome": {
-      "version": "0.5",
-      "mesh": {
-        "version": "0.1",
-        "type": "neuroglancer_multilod_draco",
-        "vertexQuantizationBits": 10,
-        "lodScaleMultiplier": 2.0,
-        "coordinateTransformations": [
-          {
-            "type": "scale",
-            "scale": [1.0, 1.0, 1.0]
-          }
-        ]
-      }
+      "version": "0.5"
     }
   }
 }
 ```
 
-For each segmented object:
-- A binary manifest file specifying:
-  - Octree decomposition parameters
-  - LOD scale information
-  - Fragment locations and sizes
-- Draco-encoded mesh fragments for each octree node
-
-### Storage Layout
-
-```
-[data].zarr/
-  ├── labels/
-  │   └── [segmentation]/
-  │       ├── zarr.json  # Contains mesh metadata
-  │       ├── fragments/ # Binary mesh data
-  │       └── manifest/  # Binary manifest files
-```
+The mesh-specific metadata lives in the collection's member attributes (as shown in the Integration with Collections section above) rather than in the mesh directory's zarr.json. This allows the same mesh data to be referenced by multiple collections with different transformations or rendering settings.
 
 ## Requirements
 
@@ -101,6 +133,8 @@ Implementation requires:
 3. Integration with existing coordinate transform system
 
 ## Drawbacks, risks, alternatives, and unknowns
+
+This proposal depends on Collections RFC-7.
 
 This proposal adds complexity but provides necessary functionality for 3D visualization. The use of Draco compression creates an external dependency but provides significant storage benefits.
 
